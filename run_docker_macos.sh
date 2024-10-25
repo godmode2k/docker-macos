@@ -8,6 +8,8 @@
 #  - https://github.com/sickcodes/Docker-OSX
 #  - https://github.com/sickcodes/Docker-OSX/issues/799#issuecomment-2338197880
 #  - https://github.com/sickcodes/Docker-OSX/issues/799#issuecomment-2348955503
+#  - https://github.com/MobCode100/Dastux/blob/main/VoodooHDA-QEMU-KVM.md
+#  - https://sourceforge.net/projects/voodoohda (download: latest version, VoodooHDA.kext-v301.zip)
 #
 # run:
 # $ sudo bash run_docker_macos.sh
@@ -120,6 +122,8 @@ echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
 # --privileged \
 # docker-osx:sonoma-vnc
 #
+#
+#
 # Audio
 # - options: {
 #   --device /dev/snd \
@@ -127,6 +131,45 @@ echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
 #   -v "/run/user/$(id -u)/pulse/native:/tmp/pulseaudio.socket" \
 #   or (logged in userid, not 'sudo' for root)
 #   -v "/run/user/1000/pulse/native:/tmp/pulseaudio.socket" \
+#   -e EXTRA="-virtfs local,path=/mnt/hostshare,mount_tag=hostshare,security_model=passthrough,id=hostshare -device intel-hda -device hda-output,audiodev=hda" \
+#   -e NOPICKER=false \
+#
+# source-based:
+#  - https://github.com/MobCode100/Dastux/blob/main/VoodooHDA-QEMU-KVM.md
+#  - https://sourceforge.net/projects/voodoohda (download: latest version, VoodooHDA.kext-v301.zip)
+#  #-e EXTRA="-virtfs local,path=/mnt/hostshare,mount_tag=hostshare,security_model=passthrough,id=hostshare -device intel-hda -device hda-output,audiodev=hda" \
+#  #-e NOPICKER=false \
+#
+# Disable System Integrity Protection (SIP)
+# (macOS) boot menu > select Recovery partition: Go to Utilities > Terminal
+# (macOS)$ csrutil status    // you can skip below command if result like this 'System Integrity Protection status: disabled' or 'Kext Signing: disabled'
+# (macOS)$ csrutil disable
+# or
+# (macOS)$ csrutil enable --without kext
+# (macOS) reboot macOS
+#
+# https://sourceforge.net/projects/voodoohda: download VoodooHDA, VoodooHDA.kext-v301.zip (latest version)
+# (macOS)$ sudo cp -R Downloads/VoodooHDA.kext /Library/Extensions
+# Shortly after that, a popup will appear.
+#
+# For Ventura:
+# - you might need to load the kext manually by entering cmd for the popup message to appear.
+# - (macOS)$ sudo kextutil -v /Library/Extensions/VoodooHDA.kext
+#
+# (macOS) Go to System Settings > Security & Privacy > Security section
+# (macOS) select 'App Store and identified developers' > Click the button 'Details...', enter your password
+# (macOS) check the 'Unidentified - VoodooHDA - Updated', click OK and restart.
+#
+#
+# Install Homebrew: https://brew.sh/
+# (macOS)$ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+#
+# Install Pulseaudio
+# (macOS)$ brew install pulseaudio
+# (macOS)$ brew services start pulseaudio
+# (macOS)$ brew services stop pulseaudio
+#
+#
 #
 # shared directroy
 # - macfuse, sshfs not work
@@ -134,7 +177,7 @@ echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
 #   -v "${SHARE}:/mnt/hostshare" \
 #   -e EXTRA="-virtfs local,path=/mnt/hostshare,mount_tag=hostshare,security_model=passthrough,id=hostshare" \
 #   then, Open Terminal inside macOS and run the following command to mount the virtual file system
-#   sudo -S mount_9p hostshare
+#   (macOS) sudo -S mount_9p hostshare
 #   (macOS) Finder [menu: Go -> Computer] -> you can find 'hostshare'.
 # }
 # ------------------------------------------
@@ -148,8 +191,8 @@ echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
 #    -e SHORTNAME=sonoma \
 #    seraphix/docker-osx:sonoma
 #
-# working: fixed infinite boot loop, ssh, shared directory
-# not: shared clipboard (host <-> guest), audio
+# working: fixed infinite boot loop, ssh, shared directory, audio
+# not: shared clipboard (host <-> guest), GPU acceleration
 SHARE=/path/to/shared_dir
 # default init mac_hdd_ng.img (200704 bytes, 196KiB):
 # - (container):/home/arch/OSX-KVM/mac_hdd_ng.img
@@ -167,7 +210,11 @@ sudo docker run --rm -it \
     -e CPU='Haswell-noTSX' -e CPUID_FLAGS='kvm=on,vendor=GenuineIntel,+invtsc,vmware-cpuid-freq=on' -e RAM=8 \
     -v "${MAC_HDD}:/home/arch/OSX-KVM/mac_hdd_ng.img" \
     -v "${SHARE}:/mnt/hostshare" \
-    -e EXTRA="-virtfs local,path=/mnt/hostshare,mount_tag=hostshare,security_model=passthrough,id=hostshare" \
+    -e EXTRA="-virtfs local,path=/mnt/hostshare,mount_tag=hostshare,security_model=passthrough,id=hostshare  -device intel-hda -device hda-output,audiodev=hda" \
+    --device /dev/snd \
+    -e AUDIO_DRIVER=pa,server=/tmp/pulseaudio.socket \
+    -v "/run/user/1000/pulse/native:/tmp/pulseaudio.socket" \
+    -e NOPICKER=false \
     seraphix/docker-osx:sonoma
 
 
